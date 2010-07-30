@@ -105,29 +105,11 @@ class Config:
     import os
     config_dir = os.path.expanduser('~/.config/ailurus/')
     @classmethod
-    def get_custom_app_count(cls):
-        if cls.parser.has_option('DEFAULT','custom_app_count'):
-            value = cls.parser.get('DEFAULT', 'custom_app_count')
-            return int(value)
-        else:
-            cls.parser.set('DEFAULT', 'custom_app_count', '0')
-            cls.save()
-            return 0
-    @classmethod
-    def increase_custom_app_count(cls):
-        if cls.parser.has_option('DEFAULT','custom_app_count'):
-            value = cls.parser.get('DEFAULT', 'custom_app_count')
-            cls.parser.set('DEFAULT', 'custom_app_count', '%d' % (int(value) + 1))
-            cls.save()
-    @classmethod
     def make_config_dir(cls):
         import os
         dir = os.path.expanduser('~/.config/ailurus/')
         if not os.path.exists(dir): # make directory
             os.makedirs(dir)
-    @classmethod
-    def get_config_dir(cls):
-        return cls.config_dir
     @classmethod
     def init(cls):
         assert not hasattr(cls, 'inited')
@@ -137,7 +119,7 @@ class Config:
         cls.parser = ConfigParser.RawConfigParser()
         # read configuration file if it exists
         cls.make_config_dir()
-        path = cls.get_config_dir() + 'conf'
+        path = cls.config_dir + 'conf'
         if os.path.exists(path):
             cls.parser.read(path)
     @classmethod
@@ -189,6 +171,15 @@ class Config:
         value = cls.parser.get('DEFAULT', key)
         value = str(value)
         return value=='True' or value=='true'
+    @classmethod
+    def get_custom_appobj_counter_value(cls):
+        try: return cls.get_int('custom_app_count')
+        except: return 0
+    @classmethod
+    def increase_customapp_counter_value(cls):
+        value = cls.get_custom_appobj_counter_value()
+        value += 1
+        cls.set_int('custom_app_count', value)
     @classmethod
     def set_do_query_before_install(cls, value):
         cls.set_bool('do_query_before_install', value)
@@ -404,17 +395,7 @@ class Config:
             return True
         except: 
             return False
-def get_desktop_environment():
-    if UBUNTU or MINT:
-        return 'ubuntu'
-    elif FEDORA:
-        return 'fedora'
-    elif ARCHLINUX:
-        return 'archlinux'
 
-def add_custom_app_inRepo(name):
-    summary = BACKEND.get_pkg_summary(name)
-    
 def set_proxy_string(proxy_string):
     import gnomekeyring
     keyring = gnomekeyring.get_default_keyring_sync()
@@ -481,7 +462,7 @@ class ResponseTime:
     def load(cls):
         import os
         try:
-            path = Config.get_config_dir() + 'response_time_3'
+            path = Config.config_dir + 'response_time_3'
             if not os.path.exists(path): return
             with open(path) as f:
                 lines = f.readlines()
@@ -495,7 +476,7 @@ class ResponseTime:
     def save(cls):
         if not cls.changed: return
         try:
-            path = Config.get_config_dir() + 'response_time_3'
+            path = Config.config_dir + 'response_time_3'
             with open(path, 'w') as f:
                 for key, value in cls.map.items():
                     print >>f, key
@@ -854,18 +835,9 @@ class APT:
         cls.fresh_cache = False
     @classmethod
     def get_pkg_summary(cls, name):
-        if not isinstance(name,str) or not name in cls.__set2:
-            return ''
-        import subprocess, os
-        path = os.path.dirname(os.path.abspath(__file__))+'/support/dump_apt_pkg_summary.py %s' % name
-        task = subprocess.Popen(['python', path],
-            stdout=subprocess.PIPE,
-            )
-        for line in task.stdout:
-            summary = line[:-1]
-            task.wait()
-            return summary
-        return ''
+        assert isinstance(name, str) and name
+        cls.refresh_cache()
+        return cls.apt_cache[name].summary
     @classmethod
     def has_broken_dependency(cls):
         cls.refresh_cache()
@@ -956,7 +928,8 @@ class APT:
     def install_local(cls, *packages):
         cls.cache_changed()
         for package in packages:
-            run_as_root_in_terminal('dpkg -i "%s"' % package)
+            run_as_root('gdebi-gtk "%s"' % package)
+#            run_as_root_in_terminal('dpkg -i "%s"' % package)
 #            daemon().apt_command('install_local', package,
 #                                 packed_env_string(), timeout=3600, dbus_interface='cn.ailurus.Interface')
     @classmethod
@@ -970,8 +943,6 @@ class APT:
 
 class CannotLockAptCacheError(Exception):
     'Cannot lock apt cache'
-
-        
 
 class PACMAN:
     fresh_cache = False
@@ -1918,28 +1889,39 @@ YLMF = Config.is_YLMF()
 DEEPIN = Config.is_Deepin()
 FEDORA = Config.is_Fedora()
 ARCHLINUX = Config.is_ArchLinux()
-BACKEND = APT
 if UBUNTU:
+    DISTRIBUTION = 'ubuntu'
     VERSION = Config.get_Ubuntu_version()
+    BACKEND = APT
 elif MINT:
+    DISTRIBUTION = 'ubuntu'
     UBUNTU_DERIV = True
     VERSION = Config.get_Mint_version() # VERSION is in ['5', '6', '7', '8', '9', '10']
     VERSION = ['hardy', 'intrepid', 'jaunty', 'karmic', 'lucid', 'maverick'][int(VERSION)-5]
+    BACKEND = APT
 elif YLMF:
+    DISTRIBUTION = 'ubuntu'
     UBUNTU_DERIV = True
     VERSION = Config.get_YLMF_version()
+    BACKEND = APT
 elif DEEPIN:
+    DISTRIBUTION = 'ubuntu'
     UBUNTU_DERIV = True
     VERSION = Config.get_Deepin_version()
+    BACKEND = APT
 elif FEDORA:
+    DISTRIBUTION = 'fedora'
     VERSION = Config.get_Fedora_version()
     BACKEND = RPM
 elif ARCHLINUX:
+    DISTRIBUTION = 'archlinux'
     VERSION = '' # ArchLinux has no version -_-b
     BACKEND = PACKMAN
 else:
-    print _('Your Linux distribution is not supported. :(')
+    # This Linux distribution is not supported. :(
+    DISTRIBUTION = ''
     VERSION = ''
+    BACKEND = None
 
 GNOME = False
 KDE = False
@@ -1960,3 +1942,11 @@ else:
     GNOME = Config.is_GNOME()
     KDE = Config.is_KDE()
     XFCE = Config.is_XFCE()
+if GNOME:
+    DESKTOP = 'gnome'
+elif KDE:
+    DESKTOP = 'kde'
+elif XFCE:
+    DESKTOP = 'xfce'
+else:
+    DESKTOP = ''

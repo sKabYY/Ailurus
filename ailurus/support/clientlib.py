@@ -19,15 +19,11 @@
 # along with Ailurus; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
-import threading
-import urllib
-import urllib2
-
-import gtk
-import pango
-
 from lib import *
 from libu import *
+import thread
+import urllib, urllib2
+import gtk, pango
 
 LOCAL_DEBUG = 0
 if LOCAL_DEBUG:
@@ -37,16 +33,16 @@ else:
     HOST = 'we-like-ailurus.appspot.com'
     PORT = 80
 
-lock = threading.Lock()
+lock = thread.allocate_lock()
 delayed = []
 
 def load_delayed_data():
     import os
     import pickle
-    fn = os.path.expanduser('~/.config/ailurus/delayed_sending')
+    file_path = Config.config_dir + 'delayed_sending'
     lock.acquire()
     try:
-        with open(fn, 'r') as f:
+        with open(file_path) as f:
             global delayed
             delayed = pickle.load(f)
     except:
@@ -81,21 +77,12 @@ def do_try_send_delayed_data():
             delayed.remove(req)
         except urllib2.URLError:
             i += 1
-            pass
-#            import traceback, sys
-#            traceback.print_exc(file=sys.stderr)
+            print_traceback()
     save_delayed_data()
     lock.release()
 
-class __delayed_sending_thread(threading.Thread):
-    def __init__(self):
-        threading.Thread.__init__(self)
-        self.start()
-    def run(self):
-        do_try_send_delayed_data()
-
 def try_send_delayed_data():
-    __delayed_sending_thread()
+    thread.start_new_thread(do_try_send_delayed_data, ())
 
 def send(d, host, port):
     assert type(d) == dict
