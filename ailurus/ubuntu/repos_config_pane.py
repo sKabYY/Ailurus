@@ -64,7 +64,7 @@ class ReposConfigPane(gtk.VBox):
         scrollwindow.add(treeview)
         scrollwindow.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
         scrollwindow.set_shadow_type(gtk.SHADOW_IN)
-        self.addArea = addArea = AddReposArea()
+        self.addArea = addArea = AddReposArea(self.main_view)
         self.add_btn = add_btn = image_stock_button(gtk.STOCK_ADD, _('Add'))
         add_btn.connect('clicked', self.__add_repos)
         buttom_box = gtk.HBox(False, 10)
@@ -294,8 +294,9 @@ class ReposConfigPane(gtk.VBox):
         self.treestore.set_value(iter, 0, b)
 
 class AddReposArea(gtk.HBox):
-    def __init__(self):
+    def __init__(self, main_view):
         gtk.HBox.__init__(self, False)
+        self.main_view = main_view
         
         self.currentBox = None
         self.officialBox = gtk.HBox(False, 10)
@@ -357,10 +358,12 @@ class AddReposArea(gtk.HBox):
         if index == 0:
             self.__set_current_box(self.officialBox)
             self.officialBox.set_sensitive(True)
+            self.main_view.window.set_focus(self.officialBox.entry)
             self.thirdPartyBox.set_sensitive(False)
         elif index == 1:
             self.__set_current_box(self.thirdPartyBox)
             self.thirdPartyBox.set_sensitive(True)
+            self.main_view.window.set_focus(self.thirdPartyBox.userentry)
             self.officialBox.set_sensitive(False)
     
     def __set_current_box(self, box):
