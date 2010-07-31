@@ -248,16 +248,20 @@ class ReposConfigPane(gtk.VBox):
             if ret == gtk.RESPONSE_NO: return
 
         run_as_root('true')
-        selection = self.treeview.get_selection()
-        model, fiter_iter = selection.get_selected()
-        treestore_iter = self.treestore_filter.convert_iter_to_child_iter(fiter_iter)
-        treestore_parentiter = self.treestore.iter_parent(treestore_iter)
         if type == False:
             text = text[1:].strip()
-        if treestore_parentiter:
-            self.treestore.insert_after(treestore_parentiter, treestore_iter, [type, text])
-        else:
+        selection = self.treeview.get_selection()
+        model, fiter_iter = selection.get_selected()
+        if fiter_iter == None:
+            treestore_iter = self.treestore.get_iter_first()
             self.treestore.append(treestore_iter, [type, text])
+        else:
+            treestore_iter = self.treestore_filter.convert_iter_to_child_iter(fiter_iter)
+            treestore_parentiter = self.treestore.iter_parent(treestore_iter)
+            if treestore_parentiter:
+                self.treestore.insert_after(treestore_parentiter, treestore_iter, [type, text])
+            else:
+                self.treestore.append(treestore_iter, [type, text])
         self.add_repos_area.clear_entries()
         self.__write_changes_to_all_repo_files()
         self.treestore_filter.refilter()
@@ -345,7 +349,7 @@ class AddReposArea(gtk.HBox):
             self.add_deb_line_box.entry.set_text('')
         elif self.selected_box == self.add_PPA_repo_box:
             self.add_PPA_repo_box.ppa_owner_entry.set_text('')
-            self.add_PPA_repo_box.ppa_name_entry.set_text('')
+#            self.add_PPA_repo_box.ppa_name_entry.set_text('')
     
     def __changed(self, index):
         if index == 0:

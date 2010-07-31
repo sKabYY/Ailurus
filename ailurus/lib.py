@@ -123,6 +123,9 @@ class Config:
         if os.path.exists(path):
             cls.parser.read(path)
     @classmethod
+    def get_config_dir(cls):
+        return cls.config_dir
+    @classmethod
     def save(cls):
         cls.make_config_dir()
         with open(cls.get_config_dir() + 'conf' , 'w') as f:
