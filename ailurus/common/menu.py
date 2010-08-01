@@ -129,7 +129,7 @@ def left_label(text):
     return box
 
 def url_button(url):
-    import gtk
+    import gtk, pango
     def func(w, url): open_web_page(url)
     def enter(w, e): 
         try: w.get_window().set_cursor(gtk.gdk.Cursor(gtk.gdk.HAND2))
@@ -275,13 +275,13 @@ def __others():
         thread.start_new_thread(check_update, ())
     help_update.connect('activate', callback)
 
-#    help_propose_suggestion = image_file_menuitem(_('Propose suggestion'), D+'umut_icons/m_propose_suggestion.png', 16)
-#    def propose_suggestion(*w):
-#        from support.clientlib import SuggestionsSubmit
-#        SuggestionsSubmit()
-#    help_propose_suggestion.connect('activate', propose_suggestion)
+    help_propose_suggestion = image_file_menuitem(_('Propose suggestion'), D+'umut_icons/m_propose_suggestion.png', 16)
+    def propose_suggestion(*w):
+        from support.gae import ProposeSuggestionWindow
+        ProposeSuggestionWindow()
+    help_propose_suggestion.connect('activate', propose_suggestion)
 
-    help_report_bug = image_file_menuitem(_('Report bugs'), D+'umut_icons/m_propose_suggestion.png', 16)
+    help_report_bug = image_file_menuitem(_('Report bugs'), D+'umut_icons/bug.png', 16)
     help_report_bug.connect('activate', 
         lambda w: report_bug() )
     
@@ -295,14 +295,16 @@ def __others():
     about = gtk.MenuItem( _('About') )
     about.connect('activate', lambda *w: show_about_dialog())
     
-    changelog = gtk.MenuItem( _('Read changelog') )
-    changelog.connect('activate', lambda *w: show_changelog())
+#    changelog = gtk.MenuItem( _('Read changelog') )
+#    changelog.connect('activate', lambda *w: show_changelog())
     
     statistics = gtk.MenuItem( _('Statistical data') )
     statistics.connect('activate', lambda *w: show_statistics())
     
-    return [ changelog, help_contribute, help_blog, help_update, 
-#             help_propose_suggestion, 
+    return [ 
+#             changelog, 
+             help_contribute, help_blog, help_update, 
+             help_propose_suggestion, 
              help_report_bug, help_translate, special_thank, about, statistics, ]
    
 def get_study_linux_menu():

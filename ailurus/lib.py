@@ -128,8 +128,11 @@ class Config:
     @classmethod
     def save(cls):
         cls.make_config_dir()
-        with open(cls.get_config_dir() + 'conf' , 'w') as f:
-            cls.parser.write(f)
+        try:
+            with open(cls.config_dir + 'conf' , 'w') as f:
+                cls.parser.write(f)
+        except:
+            print_traceback()
     @classmethod
     def set_string(cls, key, value):
         assert isinstance(key, str) and key
@@ -199,11 +202,12 @@ class Config:
         try: return cls.get_string('login_window_background')
         except: return None # please do not return ''. 
     @classmethod
-    def set_username_of_suggestion_window(cls, value):
-        cls.set_string('username_of_suggestion_window', value)
+    def set_contact(cls, value):
+        cls.set_string('contact', value)
     @classmethod
-    def get_username_of_suggestion_window(cls):
-        try: return cls.get_string('username_of_suggestion_window')
+    def get_contact(cls):
+        try:
+            return cls.get_string('contact')
         except:
             import os
             return os.environ['USER']
@@ -372,6 +376,15 @@ class Config:
     def is_ArchLinux(cls): # There is no get_arch_version, since ArchLinux has no version.
         import os
         return os.path.exists('/etc/arch-release')
+    @classmethod
+    def is_Debian(cls):
+        import platform
+        return platform.dist()[0] == 'debian'
+    @classmethod
+    def get_Debian_version(cls):
+        'return "5.*"'
+        import platform
+        return platform.dist()[1]
     @classmethod
     def is_GNOME(cls):
         if cls.is_XFCE(): return False
@@ -878,19 +891,31 @@ class APT:
         cls.refresh_cache()
         ret = []
         for pkg in cls.apt_cache:
-            if hasattr(pkg, 'isAutoRemovable'): auto_removable = pkg.isAutoRemovable
+            if hasattr(pkg, 'is_auto_removable'): auto_removable = pkg.is_auto_removable
+            elif hasattr(pkg, 'isAutoRemovable'): auto_removable = pkg.isAutoRemovable # deprecated
             elif pkg.isInstalled and pkg._depcache.IsGarbage(pkg._pkg): auto_removable = True
-            else: auto_removable = True
+            else: auto_removable = False
             
             if auto_removable:
-                ret.append([pkg.name, long(pkg.installedSize), pkg.summary.replace('\n', ' ')])
+                if hasattr(pkg, 'versions'): # recommended
+                    version = pkg.versions[0]
+                    installed_size = version.installed_size
+                    summary = version.summary
+                else: # deprecated
+                    installed_size = pkg.installedSize
+                    summary = pkg.summary
+                ret.append([pkg.name, long(installed_size), summary.replace('\n', ' ')])
         return ret
     @classmethod
     def installed(cls, package_name):
         cls.refresh_cache()
         if not package_name in cls.apt_cache:
             return False
-        return cls.apt_cache[package_name].isInstalled
+        p = cls.apt_cache[package_name]
+        if hasattr(p, 'is_installed'):
+            return p.is_installed # recommended attribute 
+        else:
+            return p.isInstalled # deprecated attribute
     @classmethod
     def exist(cls, package_name):
         cls.refresh_cache()
@@ -1300,7 +1325,31 @@ class PingThread(threading.Thread):
 def open_web_page(page):
     is_string_not_empty(page)
     notify( _('Opening web page'), page)
-    KillWhenExit.add('xdg-open %s'%page)
+    KillWhenExit.add('xdg-open "%s"'%page)
+
+def url_button(url, text=None): # put here because of open_web_page :(
+    if text == None: text = url
+    import gtk, pango
+    def func(w, url): open_web_page(url)
+    def enter(w, e): 
+        try: w.get_window().set_cursor(gtk.gdk.Cursor(gtk.gdk.HAND2))
+        except AttributeError: pass
+    def leave(w, e): 
+        try: w.get_window().set_cursor(gtk.gdk.Cursor(gtk.gdk.LEFT_PTR))
+        except AttributeError: pass
+    label = gtk.Label()
+    label.set_markup("<span color='blue'><u>%s</u></span>" % text)
+    font = pango.FontDescription('Georgia')
+    label.modify_font(font)
+    button = gtk.Button()
+    button.connect('clicked', func, url)
+    button.connect('enter-notify-event', enter)
+    button.connect('leave-notify-event', leave)
+    button.set_relief(gtk.RELIEF_NONE)
+    button.add(label)
+    align = gtk.Alignment(0, 0.5)
+    align.add(button)
+    return align
 
 def report_bug(*w):
     page = 'http://code.google.com/p/ailurus/issues/entry'
@@ -1322,6 +1371,9 @@ class firefox:
     def init(cls):
         'may raise exception'
         ini_file = os.path.expanduser('~/.mozilla/firefox/profiles.ini')
+        if not os.path.exists(ini_file):
+            print '[x] Firefox profiles.ini missing'
+            return
         with open(ini_file) as f:
             lines = f.readlines()
         for i, line in enumerate(lines):
@@ -1838,6 +1890,49 @@ class TimeStat:
         cls.__begin_time.clear()
         cls.result.clear()
 
+def add_linuxskill(linux_skill, how_to_contact_the_submitter=None):
+    assert isinstance(linux_skill, (str, unicode)) and linux_skill
+    assert how_to_contact_the_submitter is None or isinstance(how_to_contact_the_submitter, (str, unicode))
+
+    import httplib, urllib
+    params = {'linux_skill': linux_skill}
+    if how_to_contact_the_submitter:
+        params['how_to_contact_the_submitter'] = how_to_contact_the_submitter
+    params = urllib.urlencode(params)
+    headers = {'Content-type': 'application/x-www-form-urlencoded',
+               'Accept': 'text/plain'}
+    connection = httplib.HTTPConnection('we-like-ailurus.appspot.com')
+    connection.request('POST', '/add_linuxskill', params)
+    response = connection.getresponse()
+    assert response.status == 200, response.status
+    connection.close()
+
+def add_suggestion(suggestion, how_to_contact_the_submitter=None):
+    assert isinstance(suggestion, (str, unicode)) and suggestion
+    assert how_to_contact_the_submitter is None or isinstance(how_to_contact_the_submitter, (str, unicode))
+    
+    import httplib, urllib
+    params = {'suggestion': suggestion}
+    if how_to_contact_the_submitter:
+        params['how_to_contact_the_submitter'] = how_to_contact_the_submitter
+    params = urllib.urlencode(params)
+    headers = {'Content-type': 'application/x-www-form-urlencoded',
+               'Accept': 'text/plain'}
+    connection = httplib.HTTPConnection('we-like-ailurus.appspot.com')
+    connection.request('POST', '/add_suggestion', params)
+    response = connection.getresponse()
+    assert response.status == 200, response.status
+    connection.close()
+
+def debian_installation_command(package_names):
+    return 'apt-get install ' + package_names
+
+def fedora_installation_command(package_names):
+    return 'yum install ' + package_names
+
+def archlinux_installation_command(package_names):
+    return 'pacman -S ' + package_names
+
 def get_ailurus_version():
     import os
     path = A+'/version'
@@ -1876,8 +1971,10 @@ atexit.register(KillWhenExit.kill_all)
 atexit.register(drop_priviledge)
 try:
     firefox.init()
-    atexit.register(firefox.save_user_prefs)
-except: print_traceback()
+    if firefox.support:
+        atexit.register(firefox.save_user_prefs)
+except:
+    print_traceback()
 
 try:
     import pynotify
@@ -1892,39 +1989,52 @@ YLMF = Config.is_YLMF()
 DEEPIN = Config.is_Deepin()
 FEDORA = Config.is_Fedora()
 ARCHLINUX = Config.is_ArchLinux()
+DEBIAN = Config.is_Debian()
 if UBUNTU:
     DISTRIBUTION = 'ubuntu'
     VERSION = Config.get_Ubuntu_version()
     BACKEND = APT
+    installation_command_backend = debian_installation_command
 elif MINT:
     DISTRIBUTION = 'ubuntu'
     UBUNTU_DERIV = True
     VERSION = Config.get_Mint_version() # VERSION is in ['5', '6', '7', '8', '9', '10']
     VERSION = ['hardy', 'intrepid', 'jaunty', 'karmic', 'lucid', 'maverick'][int(VERSION)-5]
     BACKEND = APT
+    installation_command_backend = debian_installation_command
 elif YLMF:
     DISTRIBUTION = 'ubuntu'
     UBUNTU_DERIV = True
     VERSION = Config.get_YLMF_version()
     BACKEND = APT
+    installation_command_backend = debian_installation_command
 elif DEEPIN:
     DISTRIBUTION = 'ubuntu'
     UBUNTU_DERIV = True
     VERSION = Config.get_Deepin_version()
     BACKEND = APT
+    installation_command_backend = debian_installation_command
 elif FEDORA:
     DISTRIBUTION = 'fedora'
     VERSION = Config.get_Fedora_version()
     BACKEND = RPM
+    installation_command_backend = fedora_installation_command
 elif ARCHLINUX:
     DISTRIBUTION = 'archlinux'
     VERSION = '' # ArchLinux has no version -_-b
     BACKEND = PACKMAN
+    installation_command_backend = archlinux_installation_command
+elif DEBIAN:
+    DISTRIBUTION = 'debian'
+    VERSION = Config.get_Debian_version()
+    BACKEND = APT
+    installation_command_backend = debian_installation_command
 else:
     # This Linux distribution is not supported. :(
     DISTRIBUTION = ''
     VERSION = ''
     BACKEND = None
+    installation_command_backend = None
 
 GNOME = False
 KDE = False
