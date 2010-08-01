@@ -223,8 +223,8 @@ class ReposConfigPane(gtk.VBox):
         self.__write_changes_to_all_repo_files()
     
     def __repo_text_edited(self, cellrenderertext, path, new_text):
+        run_as_root('true') # do not catch AccessDeniedError in this function
         if self.treestore_filter[path][1] != new_text:
-            run_as_root('true') # do not catch AccessDeniedError in this function
             filter_iter = self.treestore_filter.get_iter_from_string(path)
             treestore_iter = self.treestore_filter.convert_iter_to_child_iter(filter_iter)
             type = self.__is_debline_not_commented(new_text)
